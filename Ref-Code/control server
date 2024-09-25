@@ -3,6 +3,7 @@ import time
 import subprocess
 import matplotlib.pyplot as plt
 
+##UDP USAGE
 # Define the IP address and port of the Arduino
 arduino_ip = "192.168.1.151"
 arduino_port = 8888
@@ -22,6 +23,8 @@ if result.returncode == 0:
 else:
     print(f"Command failed with error: {result.stderr}")
 print(device_ip)
+
+#UDP USAGE
 sock.bind((device_ip, arduino_port))
 
 # Initialize the plot
@@ -39,13 +42,16 @@ try:
             # print("Sending new message")
             print(newmessage)
 
+            #UDP USAGE
             sent = sock.sendto(newmessage.encode(), (arduino_ip, arduino_port))
             lastmessage = newmessage
         # time.sleep(1)
         sock.settimeout(0.1)  # Set the timeout to  1 second
         try:
+            #UDP USAGE
             sent = sock.sendto("xy".encode(), (arduino_ip, arduino_port))
 
+            #UDP Usage
             data, server = sock.recvfrom(8888)
             print(f"Received: {data.decode()}")
             depth = float(data.decode().split("dd")[1].split("tt")[0])
@@ -62,6 +68,7 @@ try:
         except socket.timeout:
             print(".", end="")
 
+        #UDP Usage
         # sock.settimeout(0.1)  # Set the timeout to  1 second
         # try:
         #     data, server = sock.recvfrom(6666)
@@ -72,6 +79,8 @@ try:
 
 except KeyboardInterrupt:
     print("Closing socket")
+
+    #UDP Usage
     sock.close()
 
 finally:
