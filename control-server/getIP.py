@@ -29,7 +29,6 @@ def run_stuff():
       time.sleep(0.1)
   except KeyboardInterrupt:
     print("Keyboard hit")
-  finally:
     arduino.close()
 
 run_stuff()
