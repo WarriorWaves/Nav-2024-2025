@@ -1,6 +1,5 @@
 import sys
 import time
-import subprocess
 import os
 import pygame
 from pygame.locals import *
@@ -8,7 +7,7 @@ import power_comp
 import serial
 
 # Initialize serial communication
-SERIAL_PORT = '/dev/ttyUSB0'  # Update this with your Arduino's serial port
+SERIAL_PORT = '/dev/ttyUSB0'  # Arduino's serial port
 BAUD_RATE = 9600
 arduino = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 
@@ -31,24 +30,13 @@ mapping = [
 mapping_dict = {item["name"]: item["index"] for item in mapping}
 print(mapping_dict)
 
-# Get the device IP (this part might not be needed for serial communication)
-command = "ifconfig | grep 192 |awk '/inet/ {print $2; exit}' "
-result = subprocess.run(
-    command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-)
-device_ip = ""
-if result.returncode == 0:
-    device_ip = result.stdout.strip()
-else:
-    print(f"Command failed with error: {result.stderr}")
-
 # Environment variables to make joystick work in the background
 os.environ["SDL_VIDEO_ALLOW_SCREENSAVER"] = "1"
 os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
 os.environ["SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
 os.environ["SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR"] = "0"
 
-CTRL_DEADZONES = [0.2] * 6  # Adjust these to your liking.
+CTRL_DEADZONES = [0.2] * 6  # Adjust
 
 def mapnum(num, outMin, outMax, inMin=-1, inMax=1):
     return round(outMin + (float(num - inMin) / float(inMax - inMin) * (outMax - outMin)))
@@ -234,5 +222,5 @@ class mainProgram(object):
         sys.exit(code)
 
 if __name__ == "__main__":
-    app = mainProgram()
-    app.run()
+    program = mainProgram()
+    program.run()
