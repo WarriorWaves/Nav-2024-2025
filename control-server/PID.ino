@@ -31,15 +31,24 @@ void setup() {
 long microseconds;
 
 void loop() {
+  readSerialInput(); // Read depth setpoint from serial
+  updateDepth(); // Update depth readings and PID control
+  applyThrust(); // Apply PID output to thrusters
+  while (micros() - microseconds < 250) {
+    delayMicroseconds(1);
+  }
+}
+
+void readSerialInput() {
   if (Serial.available()) {// Check if serial data is available
     float incomingValue = Serial.parseFloat(); // Read incoming serial float value
     if (incomingValue != 0) {// If a valid float value is received
       depthSetpoint = incomingValue; // Set the new depth setpoint
     }
   }
+}
 
-  // Main loop execution
-  microseconds = micros(); // Record the current microsecond count
+void updateDepth(){
   depthSensor.read(); // Read depth sensor data
   depthInput = depthSensor.depth(); // Get current depth
   depthPID.Compute(); // Compute PID control
@@ -49,15 +58,13 @@ void loop() {
   Serial.print(depthInput);
   Serial.print(", Setpoint: ");
   Serial.println(depthSetpoint);
+}
 
+void applyThrust() {
   // Apply PID output to thrusters
-  top_back.writeMicroseconds(depthOutput + 1500);
-  top_front.writeMicroseconds(depthOutput + 1500);
-
-  // Delay to ensure stable operation
-  while (micros() - microseconds < 250) {
-    delayMicroseconds(1);
-  }
+  int thrustValue = static_cast<int>(depthOutput) + 1500;
+  topBack.writeMicroseconds(thrustValue);
+  topFront.writeMicroseconds(thrustValue);
 }
 
 void depthSensorSetup() {
