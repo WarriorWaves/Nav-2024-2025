@@ -1,57 +1,47 @@
+import os
 import sys
 import time
-import os
+import serial
 import pygame
 from pygame.locals import *
 import power_comp
-import serial
 
-# Initialize serial communication
+# Constants
 SERIAL_PORT = '/dev/ttyUSB0'  # Arduino's serial port
 BAUD_RATE = 9600
-arduino = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-
 SEND_SERIAL = True
 ROV_MAX_AMPS = 25
 MAX_TROTTLE = 0.5
 RUN_THRUSTER = True
 SOCKETEVENT = pygame.event.custom_type()
 
-mapping = [
-    {"name": "OFL", "color": "gray", "index": 2, "posIndex": 0, "rightpad": 2},
-    {"name": "OFR", "color": "cyan", "index": 0, "posIndex": 1, "rightpad": 1},
-    {"name": "IFL", "color": "blue", "index": 1, "posIndex": 2, "rightpad": 0},
-    {"name": "IFR", "color": "purple", "index": 5, "posIndex": 3, "rightpad": 2},
-    {"name": "IBL", "color": "yellow", "index": 3, "posIndex": 4, "rightpad": 0},
-    {"name": "IBR", "color": "red", "index": 4, "posIndex": 5, "rightpad": 1},
-    {"name": "OBL", "color": "orange", "index": 7, "posIndex": 6, "rightpad": 2},
-    {"name": "OBR", "color": "pink", "index": 6, "posIndex": 7, "rightpad": 0},
-]
-mapping_dict = {item["name"]: item["index"] for item in mapping}
-print(mapping_dict)
-
-# Environment variables to make joystick work in the background
-os.environ["SDL_VIDEO_ALLOW_SCREENSAVER"] = "1"
-os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
-os.environ["SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
-os.environ["SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR"] = "0"
-
 CTRL_DEADZONES = [0.2] * 6  # Adjust
+MAPPING = [
+    {"name": "OFR", "color": "cyan", "index": 0, "posIndex": 1, "rightpad": 1},
+    {"name": "IFR", "color": "purple", "index": 1, "posIndex": 2, "rightpad": 0},
+    {"name": "IBR", "color": "red", "index": 2, "posIndex": 3, "rightpad": 1},
+    {"name": "IBL", "color": "yellow", "index": 3, "posIndex": 4, "rightpad": 0},
+    {"name": "OFL", "color": "gray", "index": 4, "posIndex": 5, "rightpad": 2},
+    {"name": "OBR", "color": "pink", "index": 5, "posIndex": 6, "rightpad": 0},
+]
+MAPPING_DICT = {item["name"]: item["index"] for item in MAPPING}
 
-def mapnum(num, outMin, outMax, inMin=-1, inMax=1):
-    return round(outMin + (float(num - inMin) / float(inMax - inMin) * (outMax - outMin)))
+# Environment variables for joystick functionality
+os.environ.update({
+    "SDL_VIDEO_ALLOW_SCREENSAVER": "1",
+    "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS": "1",
+    "SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS": "1",
+    "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR": "0"
+})
 
-def formatMessage(message):
-    output = "c"
-    if RUN_THRUSTER:
-        for i in range(len(message)):
-            output += "," + str(message[i])
-    else:
-        for i in range(len(message)):
-            output += ",1500"
-    return output
+def map_num(num, out_min, out_max, in_min=-1, in_max=1):
+    return round(out_min + (float(num - in_min) / float(in_max - in_min) * (out_max - out_min)))
 
-class mainProgram(object):
+def format_message(message):
+    output = "c" if RUN_THRUSTER else "c," + ",".join("1500" for _ in message)
+    return output + "," + ",".join(map(str, message))
+
+class MainProgram:
     def __init__(self):
         pygame.init()
         self.curcam = 1
@@ -62,165 +52,161 @@ class mainProgram(object):
         self.curMessage = ""
         self.wrist = 0  # 0 is flat, 1 is vertical
 
-        self.lastaxes = []
-        self.lastbuttons = []
+        self.last_axes = [0.0] * 6
+        self.last_buttons = [0] * 12
 
+        self.init_joystick()
+        self.init_thrusters()
+
+    def init_joystick(self):
         pygame.joystick.init()
-        self.joycount = pygame.joystick.get_count()
-        if self.joycount == 0:
-            print("This program only works with at least one joystick plugged in. No joysticks were detected.")
+        if pygame.joystick.get_count() == 0:
+            print("No joysticks detected. Please connect at least one joystick.")
             self.quit(1)
-        
+
         self.joystick = pygame.joystick.Joystick(0)
         self.joystick.init()
-        self.axiscount = self.joystick.get_numaxes()
-        self.buttoncount = self.joystick.get_numbuttons()
-        self.axes = [0.0] * self.axiscount
-        self.buttons = [0] * self.buttoncount
+        self.axis_count = self.joystick.get_numaxes()
+        self.button_count = self.joystick.get_numbuttons()
 
-        # Initialize thrust controls
-        upthrust = [item["index"] for item in mapping if "I" in item["name"]]
-        self.curMessage = "t," + ",".join(str(x) for x in upthrust)
+    def init_thrusters(self):
+        up_thrust = [item["index"] for item in MAPPING]
+        self.curMessage = "t," + ",".join(map(str, up_thrust))
         print(self.curMessage)
-        self.sendSerial()
+        self.send_serial()
 
         self.curMessage = "p,550,9,1"
         print(self.curMessage)
-        self.sendSerial()
+        self.send_serial()
 
     def run(self):
         print("Running")
-        pygameRunning = True
-        while pygameRunning:
-            for event in [pygame.event.wait()] + pygame.event.get():
-                if event.type == QUIT:
-                    pygameRunning = False
-                elif event.type == JOYAXISMOTION:
-                    self.axes[event.axis] = event.value
-                elif event.type == JOYBUTTONUP:
-                    self.buttons[event.button] = 0
-                elif event.type == JOYBUTTONDOWN:
-                    self.buttons[event.button] = 1
-                elif event.type == SOCKETEVENT:
-                    print("Socket event: " + str(event.message))
-                    if event.message == "STATUS":
-                        time.sleep(0.1)
-                    if "PIDOFF" in event.message:
-                        self.runpid = False
-                        self.curMessage = "f"
-                        self.sendSerial()
-                        self.control()
-                    if "PIDON" in event.message:
-                        self.runpid = True
-                        self.curMessage = "n"
-                        self.sendSerial()
-                        self.control()
-                    if "Power:" in event.message:
-                        self.maxThrottle = float(event.message.split(":")[1])
-                        print("Power: " + str(self.maxThrottle))
-                    if "c" in event.message:
-                        self.runJoy = False
-                        self.curMessage = event.message
-                        self.sendSerial()
-                    if "xy" in event.message:
-                        self.curMessage = event.message
-                        self.sendSerial()
-                    if event.message == "RUN":
-                        self.runJoy = True
+        while True:
+            for event in pygame.event.get():
+                self.handle_event(event)
 
-            for i in range(len(self.axes)):
-                if abs(self.axes[i]) < CTRL_DEADZONES[i]:
-                    self.axes[i] = 0.0
-                self.axes[i] = round(self.axes[i], 2)
+            self.process_axes()
+            if self.axes_changed():
+                self.control()
 
-            if str(self.axes) != str(self.lastaxes) or str(self.buttons) != str(self.lastbuttons):
-                self.lastaxes = list(self.axes)
-                self.lastbuttons = list(self.buttons)
-                if self.runJoy:
-                    self.control()
+    def handle_event(self, event):
+        if event.type == QUIT:
+            self.quit()
+        elif event.type == JOYAXISMOTION:
+            self.last_axes[event.axis] = event.value
+        elif event.type in (JOYBUTTONUP, JOYBUTTONDOWN):
+            self.last_buttons[event.button] = int(event.type == JOYBUTTONDOWN)
+        elif event.type == SOCKETEVENT:
+            self.handle_socket_event(event)
+
+    def handle_socket_event(self, event):
+        print("Socket event: " + str(event.message))
+        if event.message == "STATUS":
+            time.sleep(0.1)
+        elif "PIDOFF" in event.message:
+            self.runpid = False
+            self.curMessage = "f"
+            self.send_serial()
+            self.control()
+        elif "PIDON" in event.message:
+            self.runpid = True
+            self.curMessage = "n"
+            self.send_serial()
+            self.control()
+        elif "Power:" in event.message:
+            self.maxThrottle = float(event.message.split(":")[1])
+            print("Power: " + str(self.maxThrottle))
+        elif "c" in event.message:
+            self.runJoy = False
+            self.curMessage = event.message
+            self.send_serial()
+        elif "xy" in event.message:
+            self.curMessage = event.message
+            self.send_serial()
+        elif event.message == "RUN":
+            self.runJoy = True
+
+    def process_axes(self):
+        self.axes = [0.0 if abs(value) < CTRL_DEADZONES[i] else round(value, 2) 
+                     for i, value in enumerate(self.last_axes)]
+
+    def axes_changed(self):
+        return str(self.axes) != str(self.last_axes) or str(self.buttons) != str(self.last_buttons)
 
     def control(self):
         if RUN_THRUSTER:
-            if self.buttons[2] == 1:  # square button
+            if self.last_buttons[2]:  # Square button
                 self.runpid = not self.runpid
-                if self.runpid:
-                    self.curMessage = "n"
-                    print("Running PID")
-                else:
-                    self.curMessage = "f"
-                    print("Stopping PID")
-                self.sendSerial()
+                self.curMessage = "n" if self.runpid else "f"
+                print("Running PID" if self.runpid else "Stopping PID")
+                self.send_serial()
 
-        if self.axes[-2] == 1 and not self.maxThrottle == 0.3:  # left trigger is index: 5
-            self.maxThrottle = 0.3
-        elif self.axes[-2] == -1 and not self.maxThrottle == 0.50:
-            self.maxThrottle = 0.50
+        # Throttle management
+        self.maxThrottle = 0.3 if self.last_axes[-2] == 1 else 0.50 if self.last_axes[-2] == -1 else self.maxThrottle
 
+        # Control logic
         sway = -self.axes[2]  # right stick left-right
         heave = self.axes[3]  # right stick up-down
 
-        if self.buttons[0] == 0:  # x button
+        if self.last_buttons[0]:  # X button
+            surge, yaw = 0, 0
+            roll, pitch = -self.axes[0], self.axes[1]
+        else:
             surge = self.axes[1]
             yaw = -self.axes[0]
-            roll = 0
-            pitch = 0
-        else:
-            surge = 0
-            yaw = 0
-            roll = -self.axes[0]
-            pitch = self.axes[1]
+            roll = pitch = 0
 
-        combinedthrust = {
-            "IFL": heave - roll + pitch,
-            "OFR": surge - yaw - sway,
-            "OFL": surge + yaw + sway,
-            "IBL": heave - roll - pitch,
-            "IBR": heave + roll - pitch,
-            "IFR": heave + roll + pitch,
-            "OBR": surge - yaw + sway,
-            "OBL": surge + yaw - sway,
+        combined_thrust = {
+            "OFR": surge - yaw - sway,  # Front Right
+            "IFR": heave + roll - pitch, # Inner Front Right
+            "IBR": heave + roll + pitch, # Inner Back Right
+            "IBL": heave - roll - pitch, # Inner Back Left
+            "OFL": surge + yaw + sway,   # Front Left
+            "OFR": surge - yaw + sway,   # Outer Back Right
         }
 
-        combined = [0] * 8
-        for key, value in combinedthrust.items():
-            combined[mapping_dict[key]] = value
+        combined = [0] * 6  # Adjusted for 6 thrusters
+        for key, value in combined_thrust.items():
+            combined[MAPPING_DICT[key]] = value
 
-        max_motor = max(abs(x) for x in combined)
+        # Normalize thrust values
+        max_motor = max(abs(x) for x in combined) or 1  # Prevent division by zero
         max_input = max(abs(surge), abs(sway), abs(heave), abs(yaw), abs(pitch), abs(roll))
-        if max_motor == 0:
-            max_motor = 1
 
-        for i, t in enumerate(combined):
-            combined[i] = mapnum(
-                (t / max_motor * max_input),
+        for i in range(len(combined)):
+            combined[i] = map_num(
+                (combined[i] / max_motor * max_input),
                 1500 - (400 * self.maxThrottle),
                 1500 + (400 * self.maxThrottle),
             )
 
         combined = power_comp.calcnew(combined, ROV_MAX_AMPS)
 
-        if self.buttons[1] == 1:  # circle button
-            self.wrist += 1
-            if self.wrist > 1:
-                self.wrist = 0
+        if self.last_buttons[1]:  # Circle button
+            self.wrist = (self.wrist + 1) % 2  # Toggle wrist position
 
-        self.curMessage = formatMessage(combined)
-        self.sendSerial()
+        self.curMessage = format_message(combined)
+        self.send_serial()
 
-    def sendSerial(self):
+    def send_serial(self):
         if SEND_SERIAL:
             try:
                 print("Sending serial: " + self.curMessage)
-                arduino.write(self.curMessage.encode('utf-8') + b'\n')
+                arduino.write((self.curMessage + '\n').encode('utf-8'))
             except Exception as e:
                 print(f"Error sending data to Arduino: {e}")
 
-    def quit(self, code=0):
+    def quit(self, status=0):
+        print("Exiting program...")
         pygame.quit()
-        if SEND_SERIAL:
-            arduino.close()
-        sys.exit(code)
+        sys.exit(status)
 
 if __name__ == "__main__":
-    program = mainProgram()
-    program.run()
+    try:
+        arduino = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        program = MainProgram()
+        program.run()
+    except serial.SerialException as e:
+        print(f"Could not open serial port {SERIAL_PORT}: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
