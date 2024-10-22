@@ -2,6 +2,11 @@ import os
 import sys
 import time
 import serial
+import pygame  # Import Pygame
+
+# Initialize Pygame and the joystick
+pygame.init()
+pygame.joystick.init()
 
 print("Current Working Directory:", os.getcwd())
 
@@ -13,7 +18,7 @@ ROV_MAX_AMPS = 25
 MAX_TROTTLE = 0.5
 RUN_THRUSTER = True
 
-#fix
+# Thruster mapping
 MAPPING = [
     {"name": "OFR", "color": "cyan", "index": 0, "posIndex": 1, "rightpad": 1},
     {"name": "IFR", "color": "purple", "index": 1, "posIndex": 2, "rightpad": 0},
@@ -56,38 +61,56 @@ class MainProgram:
             self.control()
 
     def control(self):
-        # Example inputs that replace joystick inputs
-        surge = float(input("Enter surge value (-1 to 1): "))
-        sway = float(input("Enter sway value (-1 to 1): "))
-        heave = float(input("Enter heave value (-1 to 1): "))
-        yaw = float(input("Enter yaw value (-1 to 1): "))
-        roll = float(input("Enter roll value (-1 to 1): "))
-        pitch = float(input("Enter pitch value (-1 to 1): "))
+        # Handle Pygame events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:  # Handle the quit event
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.JOYAXISMOTION:  # Handle joystick motion
+                # Get joystick input
+                joystick = pygame.joystick.Joystick(0)
+                joystick.init()
+                
+                # Assuming joystick axes are used as follows:
+                surge = joystick.get_axis(1)  # Axis for surge (Y-axis)
+                sway = joystick.get_axis(0)   # Axis for sway (X-axis)
+                heave = joystick.get_axis(2)  # Axis for heave (Z-axis)
+                yaw = joystick.get_axis(3)    # Axis for yaw (R-axis)
+                roll = joystick.get_axis(4)   # Axis for roll
+                pitch = joystick.get_axis(5)  # Axis for pitch
+                
+                # Normalize the inputs to be between -1 and 1
+                surge = max(-1, min(surge, 1))
+                sway = max(-1, min(sway, 1))
+                heave = max(-1, min(heave, 1))
+                yaw = max(-1, min(yaw, 1))
+                roll = max(-1, min(roll, 1))
+                pitch = max(-1, min(pitch, 1))
 
-        combined_thrust = {
-            "OFR": surge - yaw - sway,  # Front Right
-            "IFR": heave + roll - pitch, # Inner Front Right
-            "IBR": heave + roll + pitch, # Inner Back Right
-            "IBL": heave - roll - pitch, # Inner Back Left
-            "OFL": surge + yaw + sway,   # Front Left
-            "OBR": surge - yaw + sway,   # Outer Back Right
-        }
+                combined_thrust = {
+                    "OFR": surge - yaw - sway,  # Front Right
+                    "IFR": heave + roll - pitch, # Inner Front Right
+                    "IBR": heave + roll + pitch, # Inner Back Right
+                    "IBL": heave - roll - pitch, # Inner Back Left
+                    "OFL": surge + yaw + sway,   # Front Left
+                    "OBR": surge - yaw + sway,   # Outer Back Right
+                }
 
-        combined = [0] * 6  # Adjusted for 6 thrusters
-        for key, value in combined_thrust.items():
-            combined[MAPPING_DICT[key]] = value
+                combined = [0] * 6  # Adjusted for 6 thrusters
+                for key, value in combined_thrust.items():
+                    combined[MAPPING_DICT[key]] = value
 
-        # Normalize thrust values to be between 1500 and 1650
-        for i in range(len(combined)):
-            # Map thrust values directly to PWM range for T100
-            combined[i] = int(1500 + (combined[i] * 75))  # 75 is the scale factor to get max 1650
+                # Normalize thrust values to be between 1500 and 1650
+                for i in range(len(combined)):
+                    # Map thrust values directly to PWM range for T100
+                    combined[i] = int(1500 + (combined[i] * 75))  # 75 is the scale factor to get max 1650
 
-            # Clamp the values between 1500 and 1650
-            combined[i] = min(max(combined[i], 1500), 1650)
+                    # Clamp the values between 1500 and 1650
+                    combined[i] = min(max(combined[i], 1500), 1650)
 
-        self.curMessage = format_message(combined)
-        self.send_serial()
-    # breaks in serial through intial stop 
+                self.curMessage = format_message(combined)
+                self.send_serial()
+
     def send_serial(self):
         if SEND_SERIAL:
             try:
