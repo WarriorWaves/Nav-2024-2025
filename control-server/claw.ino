@@ -13,7 +13,7 @@ void setup() {
     }
     
     if (clawServo.attach(CLAW_PIN) == 0) {
-        Serial.println("Error attaching claw servo");+
+        Serial.println("Error attaching claw servo");
     }
 
     if (rollServo.attach(ROLL_PIN) == 0) {
