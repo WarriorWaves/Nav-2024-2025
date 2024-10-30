@@ -1,6 +1,7 @@
 import cv2
 import serial
 import time
+import sys
 
 # Initialize serial communication
 SERIAL_PORT = '/dev/ttyUSB0'  # Update this with your Arduino's serial port
@@ -32,10 +33,10 @@ if __name__ == "__main__":
     # Start capturing frames
     for frame in capture_feed(camera_index):
         # Send frame data over serial
-        aruindo.write(frame)
-        aruindo.write(b'\n')  # Optional: add a delimiter for frame separation
+        arduino.write(frame)
+        arduino.write(b'\n')  # Optional: add a delimiter for frame separation
 
         # Optional: read responses from serial if needed
-        if aruindo.in_waiting:
-            response = aruindo.readline()
+        if arduino.in_waiting:
+            response = arduino.readline()
             print("Received from serial:", response.decode().strip())

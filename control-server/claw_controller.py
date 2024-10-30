@@ -5,7 +5,7 @@ import pygame
 from pygame.locals import *
 
 # Constants
-SERIAL_PORT = '/dev/ttyUSB0'  # Arduino's serial port
+SERIAL_PORT = '/dev/tty.Bluetooth-Incoming-Port'  # Arduino's serial port (corrected)
 BAUD_RATE = 9600
 SEND_SERIAL = True
 
@@ -33,20 +33,21 @@ os.environ.update({
 class MainProgram:
     def __init__(self):
         pygame.init()
-        self.init_controller()
+        self.arduino = None  # Initialize arduino as None
+        self.controller = None  # Initialize controller as None
+        self.init_controller()  # Initialize the controller first
+        self.init_serial()  # Initialize serial connection here
         self.claw_position = CLAW_CLOSED
         self.roll_position = 90  # Start at middle position
-        self.arduino = None
 
     def init_controller(self):
         pygame.joystick.init()
-        if pygame.joystick.get_count() == 0:
+        while pygame.joystick.get_count() == 0:
             print("No controllers detected. Please connect a PS5 controller.")
-            self.quit(1)
-
-        self.controller = pygame.joystick.Joystick(0)
+            pygame.time.delay(1000)  # Wait for a second before retrying
+        self.controller = pygame.joystick.Joystick(0)  # Assign the first joystick
         self.controller.init()
-        print(f"Controller detected: {self.controller.get_name()}")
+        print(f"Connected to controller: {self.controller.get_name()}")
 
     def init_serial(self):
         try:
@@ -96,7 +97,7 @@ class MainProgram:
         command = f"{servo}:{position}\n"
         try:
             print(f"Sending serial: {command.strip()}")
-            if self.arduino:
+            if self.arduino:  # Check if Arduino is connected
                 self.arduino.write(command.encode('utf-8'))
             else:
                 print("Arduino connection not established.")
@@ -105,16 +106,11 @@ class MainProgram:
 
     def quit(self, status=0):
         print("Exiting program...")
-        if self.arduino:
+        if self.arduino is not None:  
             self.arduino.close()
         pygame.quit()
         sys.exit(status)
 
 if __name__ == "__main__":
     program = MainProgram()
-    try:
-        program.init_serial()
-        program.run()
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        program.quit(1)
+    program.run()
