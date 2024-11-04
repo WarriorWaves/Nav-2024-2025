@@ -23,6 +23,7 @@ void setup() {
     Serial.println("Servo Control Ready");
 }
 
+
 void loop() {
     if (Serial.available() > 0) {
         String command = Serial.readStringUntil('\n');
