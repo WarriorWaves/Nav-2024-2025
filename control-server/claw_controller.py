@@ -5,7 +5,7 @@ import pygame
 from pygame.locals import *
 
 # Constants
-SERIAL_PORT = '/dev/tty.Bluetooth-Incoming-Port'  # Arduino's serial port (corrected)
+SERIAL_PORT = '/dev/cu.usbmodem21101'  # Arduino's serial port (corrected)
 BAUD_RATE = 9600
 SEND_SERIAL = True
 
@@ -69,12 +69,12 @@ class MainProgram:
     
     def handle_triggers(self):
         left_trigger = self.controller.get_axis(LEFT_TRIGGER)
-        right_trigger = self.controller.get_axis(RIGHT_TRIGGER)
+        right_trigger = self.controller.get_axis(RIGHT_TRIGGER) 
 
-        if abs(left_trigger) > TRIGGER_THRESHOLD:
+        if abs(left_trigger) > TRIGGER_THRESHOLD and left_trigger>0 and left_trigger<180:
             self.rotate_claw(left_trigger)
 
-        if abs(right_trigger) > TRIGGER_THRESHOLD:
+        if abs(right_trigger) > TRIGGER_THRESHOLD and right_trigger>0 and right_trigger<180:
             self.adjust_claw(right_trigger)
         
     def rotate_claw(self, trigger_value):
