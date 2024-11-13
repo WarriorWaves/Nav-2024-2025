@@ -1,6 +1,7 @@
 import time
 import subprocess
 import serial
+import sys
 
 # Initialize serial communication
 SERIAL_PORT = '/dev/ttyUSB0'  # Update this with your Arduino's serial port

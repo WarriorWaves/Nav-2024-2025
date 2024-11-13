@@ -1,22 +1,18 @@
-# pygame_controller.py
-# This file handles all joystick input and Arduino communication
-
 import serial
 import pygame
 
-# Constants for configuration
-SERIAL_PORT = '/dev/ttyUSB0'  # Arduino USB port
-BAUD_RATE = 9600               # Serial communication speed
-SEND_SERIAL = True              # Enable/disable serial communication
+SERIAL_PORT = '/dev/ttyUSB0'  
+BAUD_RATE = 9600              
+SEND_SERIAL = True            
 
-# Thruster mapping configuration
+# Thruster mapping 
 MAPPING = [
-    {"name": "OFR", "index": 0},  # Outer Front Right
-    {"name": "IFR", "index": 1},  # Inner Front Right
-    {"name": "IBR", "index": 2},  # Inner Back Right
-    {"name": "IBL", "index": 3},  # Inner Back Left
-    {"name": "OFL", "index": 4},  # Outer Front Left
-    {"name": "OBR", "index": 5},  # Outer Back Right
+    {"name": "FR", "index": 0},  # Front Right
+    {"name": "FL", "index": 1},  # Front Left
+    {"name": "BR", "index": 2},  # Back Right
+    {"name": "BL", "index": 3},  # Back Left
+    {"name": "F", "index": 4},   # Front (y-axis)
+    {"name": "B", "index": 5},   # Back (y-axis)
 ]
 MAPPING_DICT = {item["name"]: item["index"] for item in MAPPING}
 
@@ -42,7 +38,7 @@ class ROVController:
             print(f"Could not open serial port {SERIAL_PORT}: {e}")
             self.arduino = None
 
-        # Initialize thrust values (1500 is neutral position)
+        # Initialize thrust values
         self.current_thrust_values = [1500] * 6
 
     def send_serial(self, message):
@@ -67,12 +63,12 @@ class ROVController:
 
             # Calculate combined thrust for each motor
             combined_thrust = {
-                "OFR": surge - yaw - sway,     # Outer Front Right
-                "IFR": heave,                  # Inner Front Right
-                "IBR": heave,                  # Inner Back Right
-                "IBL": heave,                  # Inner Back Left
-                "OFL": surge + sway,           # Outer Front Left
-                "OBR": surge - sway,           # Outer Back Right
+                "FR": surge - yaw - sway,  # Front Right
+                "FL": surge + yaw + sway,  # Front Left
+                "BR": surge - yaw + sway,  # Back Right
+                "BL": surge + yaw - sway,  # Back Left
+                "F": heave,  # Front (y-axis)
+                "B": heave,  # Back (y-axis)
             }
 
             # Convert thrust values to PWM signals (1500 ± 150)
