@@ -3,74 +3,119 @@
 #include <PID_v1.h>
 #include <Wire.h>
 
-// PID control variables
-double dKp = 500, dKi = 5, dKd = 1;
+double dKp = 500, dKi = 5, dKd = 1; // Change based off of calibration 
 double depthInput, depthOutput;
-double depthSetpoint = 0.5;
+double depthSetpoint = 0.5;  
 
-// Initialize PID with depth control variables
 PID depthPID(&depthInput, &depthOutput, &depthSetpoint, dKp, dKi, dKd, DIRECT);
-
-// Initialize servos
 Servo top_front;
 Servo top_back;
 
-// Initialize depth sensor
 MS5837 depthSensor;
+
+double dKp_tune, dKi_tune, dKd_tune;
+
+unsigned long lastTime = 0;
+const unsigned long stabilizationPeriod = 100; //Change is too long or short 
+
+const double MIN_DEPTH = 0.1;
+const double MAX_DEPTH = 5.0;
+
+bool depthSensorFailed = false;
 
 void setup() {
   Wire.begin();
-  Serial.begin(9600); // Initialize serial communication
-  depthPID.SetOutputLimits(-200, 200); // Set PID output limits
-  depthPID.SetMode(AUTOMATIC); // Set PID to automatic mode
-  depthSensorSetup(); // Initialize depth sensor
-  motorSetup(); // Initialize motors
-  Serial.println("System ready"); // Indicate system is ready
+  Serial.begin(9600);  
+  depthPID.SetOutputLimits(-200, 200); 
+  depthPID.SetMode(AUTOMATIC); 
+  depthSensorSetup(); 
+  motorSetup(); 
+  Serial.println("System ready"); 
 }
 
 long microseconds;
 
 void loop() {
-  readSerialInput(); // Read depth setpoint from serial
-  updateDepth(); // Update depth readings and PID control
-  applyThrust(); // Apply PID output to thrusters
-  while (micros() - microseconds < 250) {
+  readSerialInput(); 
+  updateDepth(); 
+  applyThrust(); 
+  
+  while (micros() - microseconds < stabilizationPeriod * 1000) {
     delayMicroseconds(1);
   }
 }
 
 void readSerialInput() {
-  if (Serial.available()) {// Check if serial data is available
-    float incomingValue = Serial.parseFloat(); // Read incoming serial float value
-    if (incomingValue != 0) {// If a valid float value is received
-      depthSetpoint = incomingValue; // Set the new depth setpoint
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    if (input.startsWith("SET_DEPTH")) {
+      float incomingValue = input.substring(9).toFloat();
+      if (incomingValue >= MIN_DEPTH && incomingValue <= MAX_DEPTH) {
+        depthSetpoint = incomingValue;
+        Serial.print("Depth setpoint updated to: ");
+        Serial.println(depthSetpoint);
+      } else {
+        Serial.println("Invalid depth setpoint. Must be between 0.1m and 5m.");
+      }
+    }
+    else if (input.startsWith("TUNE_PID")) {
+      sscanf(input.c_str(), "TUNE_PID %lf %lf %lf", &dKp_tune, &dKi_tune, &dKd_tune);
+      depthPID.SetTunings(dKp_tune, dKi_tune, dKd_tune);
+      Serial.print("PID Tunings updated - Kp: ");
+      Serial.print(dKp_tune);
+      Serial.print(", Ki: ");
+      Serial.print(dKi_tune);
+      Serial.print(", Kd: ");
+      Serial.println(dKd_tune);
     }
   }
 }
 
-void updateDepth(){
-  depthSensor.read(); // Read depth sensor data
-  depthInput = depthSensor.depth(); // Get current depth
-  depthPID.Compute(); // Compute PID control
+void updateDepth() {
+  if (depthSensor.read()) {
+    depthInput = depthSensor.depth(); 
+  } else {
+    depthSensorFailed = true;
+    Serial.println("Depth sensor failure. Stopping motors for safety.");
+    stopMotors();
+    return;
+  }
 
-  // Send depth input and setpoint values to serial monitor
-  Serial.print("DepthInput: ");
+  depthPID.Compute();
+
+  Serial.print("Depth Input: ");
   Serial.print(depthInput);
   Serial.print(", Setpoint: ");
-  Serial.println(depthSetpoint);
+  Serial.print(depthSetpoint);
+  Serial.print(", PID Output: ");
+  Serial.println(depthOutput);
 }
 
 void applyThrust() {
-  // Apply PID output to thrusters
-  int thrustValue = static_cast<int>(depthOutput) + 1500;
-  topBack.writeMicroseconds(thrustValue);
+  if (depthSensorFailed) {
+    return; 
+  }
+
+  int thrustValue = constrain(static_cast<int>(depthOutput) + 1500, 1000, 2000); //Change
   topFront.writeMicroseconds(thrustValue);
+  topBack.writeMicroseconds(thrustValue);
+}
+
+void stopMotors() {
+  top_front.writeMicroseconds(1500); 
+  top_back.writeMicroseconds(1500); 
 }
 
 void depthSensorSetup() {
-  depthSensor.setModel(MS5837::MS5837_02BA); // Set sensor model
-  depthSensor.init(); // Initialize the sensor
-  depthSensor.setFluidDensity(997); // Set fluid density (997 for freshwater, 1029 for seawater)
+  depthSensor.setModel(MS5837::MS5837_02BA);
+  if (!depthSensor.init()) {
+    Serial.println("Failed to initialize depth sensor");
+    depthSensorFailed = true;
+    stopMotors(); 
+  }
+  depthSensor.setFluidDensity(1000); 
 }
 
 void motorSetup() {
@@ -80,3 +125,4 @@ void motorSetup() {
   top_back.writeMicroseconds(1500);  // Initialize back thruster to neutral (1500 microseconds)
   delay(7000); // Delay to stabilize motor setup
 }
+
