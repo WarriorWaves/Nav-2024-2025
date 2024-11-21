@@ -16,25 +16,30 @@ class IMU:
         Read accelerometer and gyroscope data from the serial data sent by the Arduino.
         :return: A dictionary with accelerometer and gyroscope data.
         """
-        data = self.serial_connection.readline().decode('utf-8').strip()  # Read the data from Arduino
-        # Example data: "Accel X: 12345 Y: -12345 Z: 12345 | Gyro X: 54321 Y: -54321 Z: 54321"
-        # Split the string to get the values
-        parts = data.split()
-        accel_x = int(parts[2])
-        accel_y = int(parts[4])
-        accel_z = int(parts[6])
-        gyro_x = int(parts[8])
-        gyro_y = int(parts[10])
-        gyro_z = int(parts[12])
-
+        data = self.serial_connection.readline().decode('utf-8').strip()  
+        print(f"Received data: {data}") 
+        
+        parts = data.split('|')  
+        
+        if len(parts) != 2:
+            print("Error: Data format is incorrect.")
+            return None
+        
+        accel_data = parts[0].split()  
+        gyro_data = parts[1].split()   
+        
+        # Extract accelerometer and gyroscope values
+        accel_x = int(accel_data[2].split(":")[1])  # Accel X value
+        accel_y = int(accel_data[4].split(":")[1])  # Accel Y value
+        accel_z = int(accel_data[6].split(":")[1])  # Accel Z value
+        
+        gyro_x = int(gyro_data[2].split(":")[1])   # Gyro X value
+        gyro_y = int(gyro_data[4].split(":")[1])   # Gyro Y value
+        gyro_z = int(gyro_data[6].split(":")[1])   # Gyro Z value
+        
         return {
             "accel": (accel_x, accel_y, accel_z),
             "gyro": (gyro_x, gyro_y, gyro_z),
         }
 
-# Example usage
-imu = IMU(port='/dev/ttyUSB0', baud_rate=9600)  # Update port based on your system
-while True:
-    imu_data = imu.read_imu()
-    print(imu_data)
-    time.sleep(1)
+imu = IMU(port='/dev/ttyUSB0', baud_rate=9600)  

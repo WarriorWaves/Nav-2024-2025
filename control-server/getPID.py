@@ -3,8 +3,7 @@ import subprocess
 import serial
 import sys
 
-# Initialize serial communication
-SERIAL_PORT = '/dev/ttyUSB0'  # Update this with your Arduino's serial port
+SERIAL_PORT = '/dev/ttyUSB0'  
 BAUD_RATE = 9600
 arduino = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 
@@ -19,7 +18,7 @@ def runStuff():
   try:
     while True:
       if arduino.in_waiting > 0:
-        serial_data = arduino.readline().decode('utf-8')  # Read and decode the serial data
+        serial_data = arduino.readline().decode('utf-8')  
         print(f"Received: {serial_data}")
       time.sleep(0.1);
   except KeyboardInterrupt:

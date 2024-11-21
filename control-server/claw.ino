@@ -9,7 +9,6 @@ const int ROLL_PIN = 10; // Adjust if needed
 void setup() {
     Serial.begin(9600);
     while (!Serial) {
-        ; // Wait for serial port to connect. Needed for native USB port only
     }
     
     if (clawServo.attach(CLAW_PIN) == 0) {
