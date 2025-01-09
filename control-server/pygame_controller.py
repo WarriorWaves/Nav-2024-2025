@@ -17,7 +17,6 @@ MAPPING = [
 ]
 MAPPING_DICT = {item["name"]: item["index"] for item in MAPPING}
 
-
 class IMU:
     def __init__(self, port='/dev/ttyUSB0', baud_rate=9600):
         """Initialize the IMU class using serial communication."""
@@ -80,19 +79,28 @@ class ROVController:
         pygame.event.pump()  
 
         if self.joystick:
+            # Get joystick inputs for control
             surge = self.joystick.get_axis(1)  # Forward/Backward
             sway = self.joystick.get_axis(0)   # Left/Right
             heave = self.joystick.get_axis(2)  # Up/Down
             yaw = self.joystick.get_axis(3)    # Rotation
 
-            imu_data = self.imu.read_imu()
+            imu_data = self.imu.read_imu()  # Get IMU data
             if imu_data:
+                accel_x, accel_y, accel_z = imu_data["accel"]
                 gyro_x, gyro_y, gyro_z = imu_data["gyro"]
-                print(f"IMU Gyro Data: X={gyro_x}, Y={gyro_y}, Z={gyro_z}")
 
-                # Example stabilization adjustment based on IMU gyro data
-                yaw_correction = gyro_z / 100.0  
-                yaw -= yaw_correction  # Adjust joystick yaw by IMU gyro
+                # Stabilization adjustments based on IMU data
+                yaw_correction = gyro_z / 100.0  # Adjust yaw based on gyro Z axis
+                yaw -= yaw_correction  # Adjust joystick yaw
+
+                # Example of pitch (surge) stabilization using accelerometer X
+                pitch_correction = accel_x / 2000.0  # Adjust pitch based on accel X axis
+                surge -= pitch_correction  # Adjust joystick surge
+
+                # Example of roll (sway) stabilization using accelerometer Y
+                roll_correction = accel_y / 2000.0  # Adjust roll based on accel Y axis
+                sway -= roll_correction  # Adjust joystick sway
 
             # Calculate combined thrust for each motor
             combined_thrust = {
@@ -104,6 +112,7 @@ class ROVController:
                 "B": heave,  # Back (y-axis)
             }
 
+            # Apply PID depth correction
             depth_correction = self.pid.compute_depth_correction()
 
             combined_thrust["F"] += depth_correction
@@ -132,7 +141,7 @@ class ROVController:
 # Replace with your PID implementation
 class PIDController:
     def compute_depth_correction(self):
-        return 0  
+        return 0  # This should be implemented based on your depth control logic
 
 
 # Main
@@ -142,7 +151,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            rov.process_joystick()
+            rov.process_joystick()  # Process joystick input and update thrust
     except KeyboardInterrupt:
         print("Exiting...")
     finally:

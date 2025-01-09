@@ -3,17 +3,17 @@ import cv2
 import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QPushButton, QSlider, QGroupBox, QProgressBar, QSizePolicy  # Add QSizePolicy here
+    QPushButton, QSlider, QGroupBox, QProgressBar, QSizePolicy  
 )
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QImage, QPixmap, QFont
-from pygame_controller import ROVController  # Import the ROVController class
+from pygame_controller import ROVController 
 
 
 class VideoFeedWidget(QLabel):
-    def __init__(self, title="Video Feed", parent=None):
+    def __init__(self, title="Video Feed", camera_index=0, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(480, 360)
+        self.setMinimumSize(480, 360) 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("""
@@ -23,7 +23,50 @@ class VideoFeedWidget(QLabel):
             background-color: #2d2d2d;
         """)
         self.setText(f"{title}\nNo Signal")
+        
 
+        self.capture = cv2.VideoCapture(camera_index)
+        
+        if not self.capture.isOpened():
+            print(f"Error: Could not open camera {camera_index}.")
+        else:
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_feed)
+            self.timer.start(30)  
+
+    def update_feed(self):
+        """Update the video feed in the QLabel"""
+        ret, frame = self.capture.read()
+        if ret: 
+            label_width = self.width()
+            label_height = self.height()
+            frame_height, frame_width = frame.shape[:2]
+            aspect_ratio = frame_width / frame_height
+            if label_width / label_height > aspect_ratio: 
+                new_height = label_height
+                new_width = int(new_height * aspect_ratio)
+            else:
+                new_width = label_width
+                new_height = int(new_width / aspect_ratio)
+            frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            canvas = np.zeros((label_height, label_width, 3), dtype=np.uint8)
+            x_offset = (label_width - new_width) // 2
+            y_offset = (label_height - new_height) // 2
+            canvas[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = frame_resized
+            rgb_image = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+            h, w, c = rgb_image.shape
+            bytes_per_line = c * w
+            convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(convert_to_qt_format)
+            self.setPixmap(pixmap)
+        else:
+            self.setText("No Signal")
+
+    def closeEvent(self, event):
+        """Ensure the camera is released when the widget is closed"""
+        if self.capture.isOpened():
+            self.capture.release()
+        event.accept()
 
 class ThrusterPowerWidget(QWidget):
     def __init__(self, thruster_num, parent=None):
@@ -131,7 +174,7 @@ class ClawStatusWidget(QWidget):
         self.status_label = QLabel("CLAW STATUS:")
         self.status_label.setFont(QFont("Arial", 12, QFont.Bold))
 
-        self.indicator = QLabel("CLOSED")
+        self.indicator = QLabel("""CLOSED""")
         self.indicator.setFont(QFont("Arial", 12, QFont.Bold))
         self.indicator.setStyleSheet("color: #ff4444;")
 
@@ -149,42 +192,42 @@ class ClawStatusWidget(QWidget):
 class ROVControlPanel(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        # Initialize ROV Controller
         self.controller = ROVController()
 
-        # Set up the main widget and layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout(self.central_widget)
-
-        # Create and add widgets
-        self.video_feed1 = VideoFeedWidget("Camera Feed 1")
-        self.video_feed2 = VideoFeedWidget("Camera Feed 2")
+        self.main_layout = QHBoxLayout(self.central_widget)
+        self.left_panel = QVBoxLayout()
         self.thruster_power_panel = ThrusterPowerPanel()
+        self.left_panel.addWidget(self.thruster_power_panel)
+
+        self.center_panel = QVBoxLayout()
+        self.video_feed1 = VideoFeedWidget("Camera Feed 1", camera_index=0)  
+        self.video_feed2 = VideoFeedWidget("Camera Feed 2", camera_index=1) 
+        self.center_panel.addWidget(self.video_feed1)
+        self.center_panel.addWidget(self.video_feed2)
+
+        self.right_panel = QVBoxLayout()
         self.claw_status = ClawStatusWidget()
-
-        self.layout.addWidget(self.video_feed1)
-        self.layout.addWidget(self.video_feed2)
-        self.layout.addWidget(self.thruster_power_panel)
-        self.layout.addWidget(self.claw_status)
-
-        # Set up the timer to update joystick input and GUI
+        self.right_panel.addWidget(self.claw_status)
+        self.right_panel.addStretch() 
+        self.main_layout.addLayout(self.left_panel)
+        self.main_layout.addLayout(self.center_panel, stretch=2)  
+        self.main_layout.addLayout(self.right_panel)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
-        self.timer.start(100)  # Update every 100ms
+        self.timer.start(100)  
 
         self.setWindowTitle("ROV Control Panel")
         self.setStyleSheet("background-color: #121212; color: white;")
 
     def update(self):
         """Update GUI elements based on joystick input"""
-        self.controller.process_joystick()  # Update thrust values
+        self.controller.process_joystick()  
 
-        # Update thruster power displays
         thrust_values = self.controller.get_thrust_values()
         for i, thruster in enumerate(self.thruster_power_panel.thrusters):
-            thruster.update_power(thrust_values[i] - 1500)  # Adjust for 0% = 1500
+            thruster.update_power(thrust_values[i] - 1500)  
 
     def closeEvent(self, event):
         """Override close event to clean up resources"""
