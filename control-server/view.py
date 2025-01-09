@@ -1,6 +1,6 @@
 import cv2
 import serial
-import time
+# import time
 import sys
 
 SERIAL_PORT = '/dev/ttyUSB0'  
