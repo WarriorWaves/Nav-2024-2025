@@ -12,7 +12,7 @@ class ThrusterController:
             self.joystick.init()
             print(f"Connected to controller: {self.joystick.get_name()}")
         else:
-            raise Exception("No controller found!")
+            raise Exception("No controller found!!!!!!!!!")
 
         try:
             self.serial = serial.Serial(serial_port, baud_rate, timeout=1)

@@ -2,7 +2,7 @@ import serial
 import pygame
 import time
 
-SERIAL_PORT = '/dev/ttyUSB0'  
+SERIAL_PORT = '/dev/tty.Bluetooth-Incoming-Port'  
 BAUD_RATE = 9600              
 SEND_SERIAL = True            
 
