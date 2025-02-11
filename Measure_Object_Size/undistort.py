@@ -1,55 +1,25 @@
 import cv2
 import numpy as np
 
-print("imported cv2")
-points = []
+
+img_path = '/Users/krishnanujam/Desktop/captured_image.jpeg'
+distorted_img = cv2.imread(img_path)
+if distorted_img is None:
+    raise FileNotFoundError(f"Image not found at {img_path}")
 
 
-def click_event(event, x, y, flags, param):
-    global points
-    if event == cv2.EVENT_LBUTTONDOWN:
-        points.append((x, y))
-        cv2.circle(img, (x, y), 1, (0, 0, 255), -1)
-        cv2.imshow("image", img)
-
-        if len(points) == 4:
-            pts1 = np.float32(points)
-            dx = points[0][0]
-            dy = points[0][1]
-
-            width = max(
-                np.linalg.norm(pts1[0] - pts1[1]), np.linalg.norm(pts1[2] - pts1[3])
-            )
-            height = max(
-                np.linalg.norm(pts1[0] - pts1[3]), np.linalg.norm(pts1[1] - pts1[2])
-            )
-            pts2 = np.float32(
-                [
-                    [0 + dx, 0 + dy],
-                    [width + dx, 0 + dy],
-                    [width + dx, height + dy],
-                    [0 + dx, height + dy],
-                ]
-            )
-
-            matrix = cv2.getPerspectiveTransform(pts1, pts2)
-            h, w = img.shape[:2]
-            result = cv2.warpPerspective(img, matrix, (w, h))
-            canvas_height = int(max(h, height) * 1.5)
-            canvas_width = int(max(w, width) * 1.5)
-            canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
-            y_offset = (canvas_height - h) // 2
-            x_offset = (canvas_width - w) // 2
-            canvas[y_offset : y_offset + h, x_offset : x_offset + w] = result
-            cv2.imshow("corrected image", result)
-            cv2.imwrite("./image.png", result)
+K = np.array([[3000, 0, distorted_img.shape[1] / 2],
+              [0, 3000, distorted_img.shape[0] / 2],
+              [0, 0, 1]], dtype=np.float32)
+D = np.array([-0.4, 0.1, 0, 0], dtype=np.float32)
 
 
-img = cv2.imread(
-    "/Users/aayanmaheshwari/Desktop/MATE/rang23-24/viewcam/2024-06-11 17:42:03.jpg"
-)
-cv2.imshow("image", img)
-cv2.setMouseCallback("image", click_event)
+h, w = distorted_img.shape[:2]
+new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(K, D, (w, h), np.eye(3), balance=0.0)
+map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), new_K, (w, h), cv2.CV_16SC2)
+undistorted_img = cv2.remap(distorted_img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
+output_path = '/Users/krishnanujam/Desktop/undistorted.jpg'
+cv2.imwrite(output_path, undistorted_img)
+print(f"Undistorted image sabre {output_path}")
